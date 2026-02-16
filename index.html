@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aptitude Test Online - Agree SDM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            -webkit-tap-highlight-color: transparent; 
+            user-select: none; 
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        
+        @media print {
+            .no-print { display: none !important; }
+            body { 
+                background: white !important; 
+                padding: 0 !important; 
+                margin: 0 !important; 
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .psychogram-overlay {
+                position: absolute !important;
+                top: 0 !important;
+                left: 0 !important;
+                width: 100% !important;
+                height: auto !important;
+                background: white !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                display: block !important;
+                overflow: visible !important;
+                z-index: auto !important;
+                backdrop-filter: none !important;
+            }
+            .psychogram-page { 
+                width: 210mm; 
+                height: 296mm; 
+                margin: 0 auto !important; 
+                padding: 10mm 12mm !important; 
+                box-shadow: none !important; 
+                border: none !important;
+                border-radius: 0 !important;
+                display: flex;
+                flex-direction: column;
+            }
+            .answer-grid-container { gap: 0.5rem !important; }
+            .answer-table td, .answer-table th {
+                padding-top: 2px !important;
+                padding-bottom: 2px !important;
+            }
+            @page { 
+                size: A4; 
+                margin: 0; 
+            }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .animate-shake { animation: shake 0.2s ease-in-out 0s 2; }
+        .modal-enter { opacity: 0; transform: scale(0.95); }
+        .modal-enter-active { opacity: 1; transform: scale(1); transition: all 0.3s ease-out; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 overflow-x-hidden text-left">
+    <div id="app"></div>
+
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // URL Web App dari Google Apps Script (Ubah setelah Deploy)
+        const API_URL = "https://script.google.com/macros/s/AKfycbx391XXDa_3ldoIfXLz4G6Ax5WrXF8uwQ7JApNshqX4NcMKSjf7MbJ6UNtktFJuzlM2MA/exec"; 
+
+        const LOGO_URL = "https://i.ibb.co.com/23YFFBkM/Logo-Agree.png";
+        const LOGO_LANDSCAPE_URL = "https://i.ibb.co.com/PsppdYnx/Agree-Landscape.png";
+        const TAGLINE = "Mitra Terpercaya Kelola Talenta";
+        const SUPPORT_EMAIL = "agree.sdm@gmail.com";
+        
+        const ANSWER_KEY = {
+            1:"B",2:"E",3:"D",4:"C",5:"B",6:"B",7:"E",8:"E",9:"C",10:"C",
+            11:"C",12:"B",13:"D",14:"E",15:"H",16:"D",17:"B",18:"D",19:"D",20:"D",
+            21:"D",22:"B",23:"C",24:"B",25:"B",26:"B",27:"E",28:"C",29:"D",30:"E",
+            31:"D",32:"C",33:"C",34:"C",35:"B",36:"D",37:"B",38:"D",39:"D",40:"C",
+            41:"D",42:"B",43:"E",44:"C",45:"B",46:"D",47:"D",48:"C",49:"E",50:"B",
+            51:"C",52:"B",53:"B",54:"H",55:"C",56:"A",57:"E",58:"C",59:"C",60:"D"
+        };
+
+        const App = () => {
+            const [view, setView] = useState('login'); 
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(false);
+            const [questions, setQuestions] = useState([]);
+            const [participants, setParticipants] = useState([]);
+            const [currentIdx, setCurrentIdx] = useState(0);
+            const [userAnswers, setUserAnswers] = useState({});
+            const [timeLeft, setTimeLeft] = useState(3000); 
+            const [isNavOpen, setIsNavOpen] = useState(false);
+            const [cheatCount, setCheatCount] = useState(0);
+            const [showWarning, setShowWarning] = useState(false);
+            const [selectedParticipantForReport, setSelectedParticipantForReport] = useState(null);
+            const [isWithinHours, setIsWithinHours] = useState(true);
+            const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
+
+            const callAPI = async (payload) => {
+                if (API_URL === "URL_WEB_APP_GOOGLE_ANDA") {
+                    if (payload.action === 'getBankSoal') return Array.from({length: 60}, (_, i) => ({ n: i + 1, t: "Aptitude", q: `Pertanyaan simulasi ${i+1}`, o: ["A", "B", "C", "D", "E"] }));
+                    if (payload.action === 'getParticipantsData') return [{ token: "PS-DEMO", name: "Kandidat Simulasi", pos: "Manajer HRD", branch: "Pusat", status: "Selesai", date: "14/02/2026", score: "115", cat: "KECERDASAN TINGGI", statusBreakdown: Array(60).fill("OK") }];
+                    return { success: true };
+                }
+                try {
+                    const response = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+                    const res = await response.json();
+                    if (res.status === 'success') return res.data;
+                    throw new Error(res.message);
+                } catch (err) { return null; }
+            };
+
+            useEffect(() => {
+                const checkTime = () => {
+                    const now = new Date();
+                    const day = now.getDay(); 
+                    const hour = now.getHours();
+                    setIsWithinHours((day >= 1 && day <= 5 && hour >= 9 && hour < 15) || (day === 6 && hour >= 9 && hour < 12));
+                };
+                checkTime();
+                const interval = setInterval(checkTime, 60000);
+                return () => clearInterval(interval);
+            }, []);
+
+            useEffect(() => {
+                const init = async () => {
+                    const qs = await callAPI({ action: 'getBankSoal' });
+                    if (qs) setQuestions(qs);
+                    if (view === 'admin') {
+                        const ps = await callAPI({ action: 'getParticipantsData' });
+                        if (ps) setParticipants(ps);
+                    }
+                };
+                init();
+            }, [view]);
+
+            useEffect(() => {
+                if (view === 'test-running') {
+                    const timer = setInterval(() => { setTimeLeft(t => { if (t <= 1) { handleFinish(true); return 0; } return t - 1; }); }, 1000);
+                    const handleVisibility = () => { if (document.visibilityState === 'hidden') { setCheatCount(c => { if (c + 1 >= 3) { handleFinish(true); return c + 1; } setShowWarning(true); return c + 1; }); } };
+                    document.addEventListener('visibilitychange', handleVisibility);
+                    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', handleVisibility); };
+                }
+            }, [view]);
+
+            const handleLogin = async (e) => {
+                e.preventDefault();
+                const code = e.target.accessCode.value.toUpperCase().trim();
+                if (code === 'ADMIN123') { setView('admin'); return; }
+                if (!isWithinHours && API_URL !== "URL_WEB_APP_GOOGLE_ANDA") { alert('Link nonaktif.'); return; }
+                setLoading(true);
+                const allP = await callAPI({ action: 'getParticipantsData' });
+                if (allP) {
+                    const found = allP.find(p => p.token === code);
+                    if (found) { if (found.status === 'Selesai') alert('Sesi berakhir.'); else { setUser(found); setView('test-intro'); } }
+                    else alert('Token tidak valid.');
+                }
+                setLoading(false);
+            };
+
+            const handleFinish = (isAuto = false) => { if (isAuto) executeSubmit(); else setShowConfirmSubmit(true); };
+
+            const executeSubmit = async () => {
+                setLoading(true); setShowConfirmSubmit(false);
+                const res = await callAPI({ action: 'submitAnswers', token: user.token, answers: userAnswers });
+                if (res) setView('test-finished');
+                setLoading(false);
+            };
+
+            const handlePrint = () => {
+                window.focus();
+                window.print();
+            };
+
+            const Psychogram = ({ participant, onClose }) => {
+                const breakdown = participant.statusBreakdown || Array(60).fill("-");
+                return (
+                    <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-start justify-center p-4 overflow-y-auto psychogram-overlay text-left">
+                        <div className="bg-white psychogram-page rounded-2xl shadow-2xl relative p-6 md:p-10 border border-slate-200 w-full max-w-4xl my-8 flex flex-col">
+                            
+                            {/* Control Bar (No Print) */}
+                            <div className="flex justify-end gap-3 mb-6 no-print">
+                                <button onClick={handlePrint} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-lg active:scale-95"><i data-lucide="printer" className="w-4 h-4 text-white"></i> Cetak Laporan PDF</button>
+                                <button onClick={onClose} className="p-2.5 bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-xl transition-all border border-slate-200"><i data-lucide="x" className="w-6 h-6"></i></button>
+                            </div>
+                            
+                            {/* Professional Header - Proporsional & Lebih Besar */}
+                            <div className="flex items-center justify-between border-b-4 border-indigo-900 pb-6 mb-6 text-left">
+                                <div className="flex flex-col text-left">
+                                    <div className="h-20 md:h-24 flex items-center">
+                                        <img src={LOGO_LANDSCAPE_URL} className="h-full w-auto object-contain" alt="Agree Logo" />
+                                    </div>
+                                    <p className="text-[10px] md:text-[11px] font-black text-indigo-600 uppercase tracking-[0.1em] italic text-left mt-3">{TAGLINE}</p>
+                                </div>
+                                <div className="text-right">
+                                    <h1 className="text-xl md:text-2xl font-black italic text-indigo-900 uppercase leading-none mb-1 text-right">Psikogram Hasil</h1>
+                                    <p className="text-[9px] font-bold text-slate-400 tracking-widest uppercase text-right">Professional Aptitude Assessment</p>
+                                </div>
+                            </div>
+
+                            {/* Participant Bio */}
+                            <div className="grid grid-cols-2 gap-4 text-[11px] mb-5 bg-slate-50 p-4 rounded-xl border border-slate-200 text-left shadow-sm">
+                                <div className="space-y-1 text-left">
+                                    <div className="flex text-left"><span className="w-24 inline-block font-black text-slate-400 uppercase text-[9px] text-left">Nama Lengkap</span><span className="font-bold text-slate-900 ml-1">: {participant.name}</span></div>
+                                    <div className="flex text-left"><span className="w-24 inline-block font-black text-slate-400 uppercase text-[9px] text-left">Posisi Dilamar</span><span className="font-bold text-slate-900 ml-1">: {participant.pos}</span></div>
+                                </div>
+                                <div className="space-y-1 text-left">
+                                    <div className="flex text-left"><span className="w-24 inline-block font-black text-slate-400 uppercase text-[9px] text-left">Tanggal Tes</span><span className="font-bold text-slate-900 ml-1">: {participant.date}</span></div>
+                                    <div className="flex text-left"><span className="w-24 inline-block font-black text-slate-400 uppercase text-[9px] text-left">Cabang / Unit</span><span className="font-bold text-slate-900 ml-1">: {participant.branch}</span></div>
+                                </div>
+                            </div>
+
+                            {/* Scoring Box */}
+                            <div className="bg-indigo-900 text-white p-5 rounded-2xl mb-6 flex justify-between items-center shadow-xl text-left">
+                                <div className="border-l-4 border-indigo-400 pl-6 text-left">
+                                    <p className="text-[10px] font-bold text-indigo-300 uppercase tracking-[0.2em] mb-1 text-left text-white">Skor Potensi IQ</p>
+                                    <h2 className="text-5xl md:text-6xl font-black italic tracking-tighter leading-none text-left text-white">{participant.score || "0"}</h2>
+                                </div>
+                                <div className="text-right text-white">
+                                    <p className="text-[10px] font-bold text-indigo-300 uppercase tracking-[0.2em] mb-2 text-right text-white">Klasifikasi Kecerdasan</p>
+                                    <h3 className="text-lg md:text-xl font-black italic uppercase leading-tight max-w-[280px] border-r-4 border-indigo-400 pr-4 text-right text-white">{participant.cat || "-"}</h3>
+                                </div>
+                            </div>
+
+                            {/* Psychology Recommendation */}
+                            <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-xl mb-6 text-left shadow-sm">
+                                <div className="flex items-start gap-3 text-left">
+                                    <i data-lucide="award" className="w-5 h-5 text-amber-600 mt-0.5"></i>
+                                    <div className="text-left">
+                                        <p className="text-[9px] font-black text-amber-700 uppercase tracking-widest mb-0.5 text-left">Catatan Interpretasi Psikolog:</p>
+                                        <p className="text-[11px] text-amber-900 leading-snug font-bold italic text-left">"Kami sarankan untuk mengambil kandidat dengan hasil tes IQ minimal 110 untuk mendapatkan performa kerja yang optimal sesuai standar kompetensi yang diharapkan."</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Answer Table Optimized */}
+                            <div className="mb-2 text-center">
+                                <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-2">Lembar Distribusi Jawaban (60 Butir Soal)</p>
+                            </div>
+                            <div className="grid grid-cols-4 gap-2 md:gap-4 text-[9px] border rounded-2xl p-4 bg-white shadow-inner mb-6 flex-1 text-left">
+                                {[0, 15, 30, 45].map(start => (
+                                    <table key={start} className="w-full border-collapse">
+                                        <thead>
+                                            <tr className="text-slate-400 uppercase font-black border-b-2">
+                                                <th className="text-left py-1 w-6">No</th>
+                                                <th className="text-left py-1">Ket</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {Array.from({length: 15}).map((_, i) => {
+                                                const n = start + i + 1;
+                                                const status = breakdown[n-1];
+                                                return (
+                                                    <tr key={n} className={`border-b border-slate-50 hover:bg-slate-50 transition-all ${n % 2 === 0 ? 'bg-slate-50/30' : ''}`}>
+                                                        <td className="font-bold text-slate-400 py-1 text-left">{n}</td>
+                                                        <td className={`font-black text-left ${status === 'OK' ? 'text-emerald-600':'text-red-500'}`}>{status}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                ))}
+                            </div>
+
+                            {/* Footer Information */}
+                            <div className="mt-auto pt-5 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4 text-left">
+                                <div className="text-[8px] text-slate-400 italic text-center md:text-left leading-relaxed">
+                                    Laporan ini diproses secara otomatis oleh sistem psikometris digital **Agree SDM**.<br/>
+                                    Copyright © 2026 Agree SDM - {TAGLINE}. Generated: {new Date().toLocaleString()}
+                                </div>
+                                <div className="text-right flex flex-col items-end">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <img src={LOGO_URL} className="h-5 w-auto object-contain" alt="Agree Logo" />
+                                        <p className="text-[10px] font-black text-indigo-900 uppercase tracking-tighter italic">Agree SDM Platform</p>
+                                    </div>
+                                    <p className="text-[8px] font-bold text-slate-500 flex items-center gap-1.5 justify-end uppercase tracking-widest text-right">
+                                        <i data-lucide="mail" className="w-2.5 h-2.5 text-slate-400"></i> {SUPPORT_EMAIL}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            if (view === 'login') return (
+                <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-8 relative overflow-hidden text-center text-white">
+                    <img src={LOGO_URL} className="h-16 mb-8 drop-shadow-2xl z-10" alt="Agree Logo" />
+                    <h1 className="text-2xl font-black text-white italic uppercase mb-1 z-10 tracking-tighter text-center text-white">Aptitude Test Online</h1>
+                    <p className="text-[9px] font-bold text-slate-500 tracking-[0.3em] mb-10 z-10 uppercase text-center text-slate-500">{TAGLINE}</p>
+                    <form onSubmit={handleLogin} className="w-full max-w-sm space-y-4 z-10 text-center">
+                        <input name="accessCode" required placeholder="KODE AKSES" className={`w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-white text-center font-mono text-2xl tracking-[0.2em] outline-none focus:ring-2 focus:ring-indigo-500 uppercase transition-all shadow-inner`} />
+                        <button disabled={loading} className={`w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-5 rounded-2xl shadow-xl transition-all uppercase text-xs active:scale-95 text-white font-black`}>{loading ? 'Memvalidasi...' : 'Masuk ke Sistem'}</button>
+                    </form>
+                    <div className="mt-12 text-center text-[9px] text-slate-600 uppercase font-bold tracking-widest z-10 leading-relaxed text-center text-slate-600">Agree SDM - {TAGLINE}<br/>Support: {SUPPORT_EMAIL}</div>
+                </div>
+            );
+
+            if (view === 'admin') return (
+                <div className="min-h-screen bg-slate-50 pb-20 text-left">
+                    <nav className="bg-white border-b p-4 flex justify-between items-center sticky top-0 z-50 shadow-sm no-print text-left">
+                        <div className="flex items-center gap-3 text-left"><img src={LOGO_URL} className="h-6" alt="Logo" /><div className="w-[1px] h-4 bg-slate-200"></div><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left text-slate-400">Admin Panel Monitoring</span></div>
+                        <button onClick={() => window.location.reload()} className="text-red-500 font-bold text-[10px] uppercase hover:bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 transition-all text-right text-red-500">Logout</button>
+                    </nav>
+                    {selectedParticipantForReport && <Psychogram participant={selectedParticipantForReport} onClose={() => setSelectedParticipantForReport(null)} />}
+                    <div className="p-4 max-w-5xl mx-auto space-y-6 no-print text-left">
+                        <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col md:flex-row gap-8 items-start text-left">
+                            <div className="flex-1 w-full text-left">
+                                <h2 className="font-black text-xs text-indigo-600 uppercase mb-4 flex items-center gap-2 text-left text-indigo-600"><i data-lucide="user-plus" className="w-4 h-4 text-indigo-600"></i> Registrasi Peserta Baru</h2>
+                                <form onSubmit={async (e) => { e.preventDefault(); const fd = new FormData(e.target); const newP = await callAPI({ action: 'registerParticipant', name: fd.get('n'), position: fd.get('p'), branch: fd.get('b') }); if (newP) { setParticipants(prev => [newP, ...prev]); e.target.reset(); } }} className="space-y-3">
+                                    <input name="n" placeholder="Nama Lengkap Kandidat" required className="w-full p-4 bg-slate-50 rounded-xl text-sm border-none focus:ring-1 focus:ring-indigo-500 text-left" />
+                                    <div className="grid grid-cols-2 gap-3 text-left">
+                                        <input name="p" placeholder="Posisi" required className="w-full p-4 bg-slate-50 rounded-xl text-sm border-none focus:ring-1 focus:ring-indigo-500 text-left" />
+                                        <input name="b" placeholder="Cabang" required className="w-full p-4 bg-slate-50 rounded-xl text-sm border-none focus:ring-1 focus:ring-indigo-500 text-left" />
+                                    </div>
+                                    <button className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-xs uppercase shadow-lg active:scale-95 transition-all text-center text-white font-black">Simpan & Generate Token</button>
+                                </form>
+                            </div>
+                            <div className="bg-indigo-900 p-6 rounded-3xl w-full md:w-72 text-white shadow-xl text-left">
+                                <h3 className="text-indigo-300 font-black text-xs uppercase mb-3 border-b border-indigo-800 pb-2 flex items-center gap-2 text-left text-indigo-300"><i data-lucide="calendar" className="w-4 h-4 text-indigo-300 text-left"></i> Aturan Aktif Link</h3>
+                                <div className="space-y-2 text-[10px] font-bold uppercase text-left text-white">
+                                    <div className="flex justify-between text-left text-white"><span>Senin - Jumat</span><span>09:00 - 15:00</span></div>
+                                    <div className="flex justify-between text-left text-white"><span>Sabtu</span><span>09:00 - 12:00</span></div>
+                                    <div className="mt-4 pt-4 border-t border-indigo-800 text-left text-white">
+                                        <p className="text-indigo-400 mb-1 tracking-widest text-left text-indigo-400">Durasi Tes</p>
+                                        <p className="text-2xl font-black italic tracking-tighter uppercase text-left text-white">50 Menit</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-3xl border shadow-sm overflow-hidden text-left">
+                            <div className="p-6 border-b bg-slate-50/50 flex justify-between items-center text-left">
+                                <h3 className="font-black text-xs text-slate-400 uppercase tracking-widest flex items-center gap-2 text-left text-slate-400"><i data-lucide="users" className="w-4 h-4 text-slate-400 text-left"></i> Monitoring Database</h3>
+                                <span className="bg-indigo-100 text-indigo-600 text-[10px] font-black px-3 py-1 rounded-full text-indigo-600 font-black">{participants.length} KANDIDAT</span>
+                            </div>
+                            <div className="overflow-x-auto text-left">
+                                <table className="w-full text-left">
+                                    <thead className="bg-slate-50 text-slate-400 text-[9px] font-bold uppercase tracking-widest text-left text-slate-400">
+                                        <tr><th className="px-6 py-4 text-left">Data Kandidat</th><th className="px-6 py-4 text-center">Status & Waktu</th><th className="px-6 py-4 text-center">Hasil IQ</th><th className="px-6 py-4 text-center">Aksi</th></tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 text-left">
+                                        {participants.map((p, i) => (
+                                            <tr key={i} className="hover:bg-slate-50 transition-colors group text-left">
+                                                <td className="px-6 py-4 text-left">
+                                                    <div className="font-bold text-sm text-slate-800 text-left">{p.name}</div>
+                                                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter italic text-left">{p.pos} • {p.branch}</div>
+                                                    <code className="mt-2 inline-block bg-indigo-50 px-2 py-0.5 rounded text-indigo-600 font-mono text-[10px] font-black border border-indigo-100 text-left text-indigo-600">{p.token}</code>
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    <span className={`inline-block px-3 py-1 rounded-full text-[9px] font-black uppercase ${p.status === 'Selesai' ? 'bg-emerald-100 text-emerald-600 border-emerald-200 text-emerald-600':'bg-amber-100 text-amber-600 border-amber-200 animate-pulse text-amber-600'}`}>{p.status}</span>
+                                                    {p.date !== "-" && <div className="text-[8px] text-slate-300 mt-1 font-bold italic tracking-tighter uppercase text-center text-slate-300">{p.date}</div>}
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    {p.status === 'Selesai' ? (
+                                                        <div><div className="text-base font-black text-indigo-600 text-center leading-none text-indigo-600">{p.score}</div><div className="text-[8px] text-slate-400 font-bold uppercase italic mt-1 leading-tight text-center text-slate-400">{p.cat}</div></div>
+                                                    ) : <span className="text-[9px] text-slate-300 italic font-bold text-center text-slate-300">Menunggu...</span>}
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    {p.status === 'Selesai' ? (
+                                                        <button onClick={() => setSelectedParticipantForReport(p)} className="p-3 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all transform hover:scale-110 active:scale-95 text-white"><i data-lucide="file-text" className="w-4 h-4 text-white"></i></button>
+                                                    ) : <div className="p-3 text-slate-200 text-center"><i data-lucide="clock" className="w-4 h-4 mx-auto text-center text-slate-200"></i></div>}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            // Melanjutkan view Tes lainnya (Intro, Running, Finished)
+            if (view === 'test-intro') return (
+                <div className="min-h-screen bg-white p-8 flex flex-col justify-center text-center">
+                    <div className="max-w-md mx-auto w-full text-center">
+                        <img src={LOGO_URL} className="h-12 mx-auto mb-10 text-center" />
+                        <h1 className="text-3xl font-black text-slate-900 mb-2 uppercase tracking-tighter leading-tight text-center text-indigo-900">Halo, {user.name}</h1>
+                        <p className="text-slate-400 text-sm mb-10 leading-relaxed font-medium italic text-center">Anda terdaftar untuk posisi <b>{user.pos}</b>. Perhatikan aturan pengerjaan berikut:</p>
+                        <div className="bg-slate-50 p-8 rounded-[2.5rem] mb-10 text-left space-y-6 border border-slate-100 shadow-inner text-left">
+                            <div className="flex items-center gap-5 text-left"><div className="p-3 bg-indigo-100 text-indigo-600 rounded-2xl shadow-sm text-left"><i data-lucide="timer" className="w-5 h-5 text-indigo-600 text-left"></i></div><div><p className="text-xs font-black text-slate-800 uppercase tracking-wide text-left">Durasi</p><p className="text-[10px] text-slate-500 font-bold uppercase italic leading-none text-left">Batas waktu 50 Menit</p></div></div>
+                            <div className="flex items-center gap-5 text-left"><div className="p-3 bg-red-100 text-red-600 rounded-2xl shadow-sm text-left"><i data-lucide="shield-alert" className="w-5 h-5 text-red-600 text-left"></i></div><div><p className="text-xs font-black text-red-600 uppercase tracking-wide text-left text-red-600">Anti-Cheat</p><p className="text-[10px] text-red-400 font-bold uppercase italic leading-none text-left text-red-400">Dilarang pindah tab/aplikasi</p></div></div>
+                        </div>
+                        <button onClick={() => setView('test-running')} className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-2xl active:scale-95 transition-all text-center text-white font-black">Mulai Tes Sekarang</button>
+                    </div>
+                </div>
+            );
+
+            if (view === 'test-running') {
+                const q = (questions && questions[currentIdx]) || {n: currentIdx+1, q: `Sedang memproses soal...`, t: "Aptitude", o: ["-"]};
+                return (
+                    <div className="min-h-screen bg-slate-50 flex flex-col pb-32 text-left">
+                        {showWarning && <div className="fixed inset-0 z-[100] bg-red-600/90 backdrop-blur-md flex items-center justify-center p-6 text-white text-center no-print text-white"><div className="max-w-xs animate-shake text-center text-white"><i data-lucide="alert-octagon" className="w-20 h-20 mx-auto mb-6 text-center text-white text-red-600"></i><h2 className="text-2xl font-black uppercase mb-4 italic text-white text-center text-white text-white">Pelanggaran!</h2><p className="text-xs font-bold leading-relaxed mb-8 uppercase tracking-widest text-red-100 text-center text-white text-white">Dilarang berpindah tab. 1 kali lagi tes akan ditutup otomatis.</p><button onClick={() => setShowWarning(false)} className="bg-white text-red-600 px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl text-center text-red-600">Kembali ke Tes</button></div></div>}
+                        {showConfirmSubmit && (<div className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-6 text-center no-print text-center text-white"><div className="bg-white p-10 rounded-[2.5rem] shadow-2xl max-w-sm w-full modal-enter modal-enter-active border border-slate-100 text-center"><i data-lucide="send" className="w-16 h-16 text-indigo-600 mx-auto mb-6 text-center text-indigo-600"></i><h2 className="text-2xl font-black uppercase mb-4 text-slate-900 tracking-tighter text-center text-slate-900">Kirim Jawaban?</h2><p className="text-sm text-slate-500 leading-relaxed mb-8 text-center text-slate-500">Data yang dikirim tidak dapat diubah kembali. Pastikan semua soal telah terjawab.</p><div className="flex flex-col gap-3 text-center"><button onClick={executeSubmit} disabled={loading} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-xl shadow-indigo-100 active:scale-95 transition-all text-center text-white font-black">Ya, Kirim Sekarang</button><button onClick={() => setShowConfirmSubmit(false)} className="w-full bg-slate-100 text-slate-500 py-4 rounded-2xl font-black text-xs uppercase text-center text-slate-500">Batal</button></div></div></div>)}
+                        <nav className="bg-white border-b p-4 flex justify-between items-center sticky top-0 z-50 shadow-sm no-print text-left">
+                            <img src={LOGO_URL} className="h-5" />
+                            <div className="bg-slate-900 text-white px-4 py-2 rounded-2xl text-[11px] font-mono font-bold flex items-center gap-3 border border-slate-700 shadow-xl text-white">
+                                <i data-lucide="timer" className="w-4 h-4 text-indigo-400 animate-pulse text-indigo-400"></i>
+                                {Math.floor(timeLeft/60)}:{String(timeLeft%60).padStart(2,'0')}
+                            </div>
+                            <button onClick={() => setIsNavOpen(true)} className="p-2 bg-indigo-50 text-indigo-600 rounded-xl transition-all hover:bg-indigo-100 text-indigo-600"><i data-lucide="grid-3x3" className="w-5 h-5 text-indigo-600"></i></button>
+                        </nav>
+                        {isNavOpen && (
+                            <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm no-print text-left" onClick={() => setIsNavOpen(false)}>
+                                <div className="absolute right-0 top-0 bottom-0 w-4/5 bg-white p-6 overflow-y-auto shadow-2xl text-left" onClick={e => e.stopPropagation()}>
+                                    <div className="flex justify-between items-center mb-6 border-b pb-4 text-left"><h3 className="font-black text-xs uppercase text-slate-400 tracking-widest italic text-left text-slate-400">Peta Soal</h3><button onClick={() => setIsNavOpen(false)}><i data-lucide="x" className="w-6 h-6 text-slate-300 text-slate-300"></i></button></div>
+                                    <div className="grid grid-cols-4 gap-3 text-left">
+                                        {Array.from({length: 60}).map((_, i) => (
+                                            <button 
+                                                key={i} 
+                                                onClick={() => { setCurrentIdx(i); setIsNavOpen(false); }} 
+                                                className={`aspect-square rounded-xl text-[10px] font-black border transition-all ${currentIdx === i ? 'bg-indigo-600 text-white shadow-lg scale-110 border-indigo-600 text-white font-black' : userAnswers[i] ? 'bg-emerald-50 text-emerald-600 border-emerald-100 text-emerald-600 font-black' : 'bg-slate-50 text-slate-300'}`}
+                                            >
+                                                {i+1}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        <main className="p-4 max-w-lg mx-auto w-full flex-1 no-print text-left">
+                            <div className="bg-white p-6 md:p-10 rounded-[2.5rem] shadow-sm border border-slate-200 relative overflow-hidden text-left">
+                                <div className="absolute top-0 left-0 w-full h-1 bg-slate-50"><div className="bg-indigo-600 h-full transition-all duration-500" style={{width: `${((currentIdx+1)/60)*100}%`}}></div></div>
+                                <div className="flex justify-between items-center mb-8 text-left text-indigo-600">
+                                    <span className="px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-[10px] font-black uppercase italic tracking-widest shadow-sm text-left text-indigo-600 font-black">Soal {q.n}</span>
+                                    <span className="text-[10px] font-bold text-slate-300 uppercase italic tracking-widest text-right text-slate-300">{q.t}</span>
+                                </div>
+                                <h2 className="text-lg md:text-xl font-bold text-slate-800 leading-relaxed mb-10 text-left text-slate-800">{q.q}</h2>
+                                {q.u && <div className="mb-10 p-3 bg-slate-50 rounded-[2rem] border border-slate-100 text-center shadow-inner text-center"><img src={q.u} className="max-w-full h-auto rounded-xl mx-auto max-h-[250px] object-contain" /></div>}
+                                <div className="space-y-3.5 text-left">
+                                    {q.o.map((txt, i) => { 
+                                        const lbl = String.fromCharCode(65 + i); 
+                                        const isSel = userAnswers[currentIdx] === lbl; 
+                                        return (
+                                            <button 
+                                                key={i} 
+                                                onClick={() => setUserAnswers({...userAnswers, [currentIdx]: lbl})} 
+                                                className={`w-full p-4 md:p-5 rounded-2xl border-2 flex items-center gap-5 transition-all active:scale-[0.98] text-left group ${isSel ? 'border-indigo-600 bg-indigo-50 shadow-md ring-4 ring-indigo-50 text-left' : 'border-slate-50 hover:bg-slate-50 hover:border-slate-200 text-left'}`}
+                                            >
+                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 transition-all ${isSel ? 'bg-indigo-600 text-white shadow-lg':'bg-slate-100 text-slate-400 group-hover:bg-slate-200'}`}>{lbl}</div>
+                                                <span className={`text-xs md:text-sm font-bold leading-snug ${isSel ? 'text-indigo-900 text-left':'text-slate-600 text-left'}`}>{txt}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </main>
+                        <div className="fixed bottom-0 left-0 right-0 p-5 bg-white/90 backdrop-blur-md border-t flex justify-between items-center gap-4 z-40 safe-bottom shadow-lg no-print">
+                            <button disabled={currentIdx === 0} onClick={() => setCurrentIdx(c => c-1)} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest disabled:opacity-30 text-center text-slate-500 text-[10px]">Kembali</button>
+                            {currentIdx === 59 ? (
+                                <button onClick={() => handleFinish()} disabled={loading} className="flex-[2] py-4 bg-indigo-600 text-white font-black py-4 rounded-2xl font-black text-[10px] uppercase shadow-xl hover:bg-indigo-700 transition-all active:scale-95 animate-pulse text-center text-white font-black">Selesai & Kirim</button>
+                            ) : (
+                                <button onClick={() => setCurrentIdx(c => c+1)} className="flex-[2] py-4 bg-slate-900 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 text-center text-white font-black">Lanjut</button>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
+
+            if (view === 'test-finished') return (
+                <div className="min-h-screen bg-white flex items-center justify-center p-10 text-center relative overflow-hidden">
+                    <div className="max-w-xs z-10 text-center">
+                        <img src={LOGO_URL} alt="Agree SDM" className="h-10 mx-auto mb-10 text-center" />
+                        <div className="w-24 h-24 bg-emerald-100 text-emerald-600 rounded-[2.5rem] flex items-center justify-center mx-auto mb-10 shadow-2xl shadow-emerald-50 text-center text-emerald-600"><i data-lucide="check" className="w-12 h-12 stroke-[3px] text-emerald-600"></i></div>
+                        <h2 className="text-3xl font-black text-slate-900 mb-4 tracking-tighter uppercase leading-none italic text-emerald-600 text-center">Terima Kasih</h2>
+                        <p className="text-slate-400 text-[11px] font-medium leading-relaxed mb-12 italic text-center text-slate-400 text-[11px]">Jawaban Anda berhasil disimpan secara permanen di sistem Agree SDM.</p>
+                        <button onClick={() => window.location.reload()} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-bold text-[10px] uppercase tracking-widest shadow-xl transition-all hover:bg-indigo-600 text-center text-white font-black">Keluar Platform</button>
+                        <p className="mt-10 text-[8px] font-black text-slate-300 uppercase tracking-[0.3em] text-center text-slate-300 text-[8px]">{TAGLINE}</p>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('app'));
+        root.render(<App />);
+        setInterval(() => { if(window.lucide) lucide.createIcons(); }, 1000);
+    </script>
+</body>
+</html>
